@@ -60,6 +60,7 @@ def logout_view(request):
         return response
     return perform_logout(request)
 
+
 #  if request.user.authenticated
 @csrf_exempt
 def post_story(request):
@@ -67,7 +68,7 @@ def post_story(request):
         if not request.user.is_authenticated:
             return HttpResponse('User not logged in', status=503, content_type='text/plain')
         try:
-            author = get_object_or_404(Author, pk=request.user.id)
+            author = request.user
             json_data = json.loads(request.body.decode('utf-8'))
             region = json_data['region']
             category = json_data['category']
@@ -92,19 +93,20 @@ def post_story(request):
         region = request.GET.get('story_region', '*')
         date_str = request.GET.get('story_date', '*')
 
-        date = None
+        date = '*'
         if date_str != '*':
             try:
                 date = datetime.strptime(date_str, '%d/%m/%Y').date()
             except ValueError:
-                return HttpResponse('Invalid date format. Date must be in DD/MM/YYYY format.', status=400, content_type='text/plain')
+                return HttpResponse('Invalid date format. Date must be in DD/MM/YYYY format.', status=400,
+                                    content_type='text/plain')
 
         filters = {}
         if category != '*':
             filters['category'] = category
         if region != '*':
             filters['region'] = region
-        if date:
+        if date != '*' and date != None:
             filters['date__gte'] = date
 
         stories = NewsStory.objects.filter(**filters)
@@ -115,7 +117,7 @@ def post_story(request):
                     'headline': story.headline,
                     'story_cat': story.category,
                     'story_region': story.region,
-                    'author': story.author.name,
+                    'author': story.author.username,
                     'story_date': story.date.strftime('%Y-%m-%d'),
                     'story_details': story.details
                 } for story in stories
@@ -128,13 +130,9 @@ def post_story(request):
         return HttpResponse('Invalid request method', status=405, content_type='text/plain')
 
 
-
-
-
 @csrf_exempt
 @login_required
 def delete_story(request, key):
-
     def validate_request_method(request):
         if request.method != 'DELETE':
             return HttpResponse('Invalid request method', status=503, content_type='text/plain')

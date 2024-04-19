@@ -136,6 +136,7 @@ class Client:
                     return
 
         url = "https://newssites.pythonanywhere.com/api/directory/"
+        # url = "http://127.0.0.1:8000/"
         response = self.session.get(url)
         if response.status_code != 200:
             print("Failed to fetch agencies directory.")
@@ -150,11 +151,12 @@ class Client:
                 if params_dict['id'] != "*" and params_dict['id'] != code:
                     continue
 
+                # agency_url = "http://localhost:8000/api/stories"
                 agency_url = f"{agency['url'].rstrip('/')}/api/stories"
                 stories_response = self.session.get(agency_url, params={
-                    "story_cat": params_dict['cat'] if params_dict['cat'] != "*" else None,
-                    "story_region": params_dict['reg'] if params_dict['reg'] != "*" else None,
-                    "story_date": params_dict['date'] if params_dict['date'] != "*" else None,
+                    "story_cat": params_dict['cat'] if params_dict['cat'] != "*" else "*",
+                    "story_region": params_dict['reg'] if params_dict['reg'] != "*" else "*",
+                    "story_date": params_dict['date'] if params_dict['date'] != "*" else "*",
                 })
 
                 if stories_response.status_code == 200:
@@ -163,11 +165,12 @@ class Client:
                     for story in stories:
                         self.print_story_details(story)
                 else:
-                    print(f"Error retrieving stories from {agency['url']}: HTTP {stories_response.status_code}")
+                    print(f"Error retrieving stories from {agency['url']}: HTTP {stories_response.status_code} ")
             except requests.RequestException as e:
                 print(f"Failed to fetch stories from {agency['url']}: {str(e)}")
 
     def print_story_details(self, story):
+        # print(story)
         print(f"Key: {story.get('key')}")
         print(f"Headline: {story.get('headline')}")
         print(f"Category: {story.get('story_cat')}")
