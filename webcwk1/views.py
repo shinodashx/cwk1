@@ -63,70 +63,81 @@ def logout_view(request):
 #  if request.user.authenticated
 @csrf_exempt
 def post_story(request):
-    def handle_post_request(request):
+    if request.method == 'POST':
         if not request.user.is_authenticated:
-            return HttpResponse('User not logged in', status=401, content_type='text/plain')
+            return HttpResponse('User not logged in', status=503, content_type='text/plain')
+        try:
+            author = get_object_or_404(Author, pk=request.user.id)
+            json_data = json.loads(request.body.decode('utf-8'))
+            region = json_data['region']
+            category = json_data['category']
+            if region not in {'uk', 'eu', 'w'}:
+                return HttpResponse('Invalid region', status=503, content_type='text/plain')
+            if category not in {'pol', 'art', 'tech', 'trivia'}:
+                return HttpResponse('Invalid category', status=503, content_type='text/plain')
+            NewsStory.objects.create(
+                headline=json_data['headline'],
+                category=json_data['category'],
+                region=json_data['region'],
+                author=author,
+                details=json_data['details'],
+                date=datetime.now()
+            )
+            return HttpResponse(status=201, content_type='text/plain')
+        except Exception as e:
+            return HttpResponse(f'Failed to add story: {str(e)}', status=503, content_type='text/plain')
 
-        author = get_object_or_404(Author, pk=request.user.id)
-        json_data = json.loads(request.body.decode('utf-8'))
-        NewsStory.objects.create(
-            headline=json_data.get('headline'),
-            category=json_data.get('category'),
-            region=json_data.get('region'),
-            author=author,
-            details=json_data.get('details'),
-            date=datetime.now()
-        )
-        return HttpResponse(status=201, content_type='text/plain')
+    elif request.method == 'GET':
+        category = request.GET.get('story_cat', '*')
+        region = request.GET.get('story_region', '*')
+        date_str = request.GET.get('story_date', '*')
 
-    def handle_get_request(request):
-        filters = {
-            'category': request.GET.get('story_cat', None),
-            'region': request.GET.get('story_region', None),
-            'date__gte': parse_date(request.GET.get('story_date'))
-        }
-        filters = {key: value for key, value in filters.items() if value is not None}
+        date = None
+        if date_str != '*':
+            try:
+                date = datetime.strptime(date_str, '%d/%m/%Y').date()
+            except ValueError:
+                return HttpResponse('Invalid date format. Date must be in DD/MM/YYYY format.', status=400, content_type='text/plain')
+
+        filters = {}
+        if category != '*':
+            filters['category'] = category
+        if region != '*':
+            filters['region'] = region
+        if date:
+            filters['date__gte'] = date
 
         stories = NewsStory.objects.filter(**filters)
-        if stories:
-            return JsonResponse({'stories': [format_story(story) for story in stories]})
+        if stories.exists():
+            stories_list = [
+                {
+                    'key': str(story.pk),
+                    'headline': story.headline,
+                    'story_cat': story.category,
+                    'story_region': story.region,
+                    'author': story.author.name,
+                    'story_date': story.date.strftime('%Y-%m-%d'),
+                    'story_details': story.details
+                } for story in stories
+            ]
+            return JsonResponse({'stories': stories_list})
         else:
             return HttpResponse('No stories found', status=404, content_type='text/plain')
 
-    def parse_date(date_str):
-        if date_str and date_str != '*':
-            try:
-                return datetime.strptime(date_str, '%d/%m/%Y').date()
-            except ValueError:
-                HttpResponse('Invalid date format. Date must be in DD/MM/YYYY format.', status=400)
-        return None
-
-    def format_story(story):
-        return {
-            'key': str(story.pk),
-            'headline': story.headline,
-            'story_cat': story.category,
-            'story_region': story.region,
-            'author': story.author.name,
-            'story_date': story.date.strftime('%Y-%m-%d'),
-            'story_details': story.details
-        }
-
-    if request.method == 'POST':
-        return handle_post_request(request)
-    elif request.method == 'GET':
-        return handle_get_request(request)
     else:
         return HttpResponse('Invalid request method', status=405, content_type='text/plain')
+
+
 
 
 
 @csrf_exempt
 @login_required
 def delete_story(request, key):
+
     def validate_request_method(request):
         if request.method != 'DELETE':
-            return HttpResponse('Invalid request method', status=405, content_type='text/plain')
+            return HttpResponse('Invalid request method', status=503, content_type='text/plain')
         return None
 
     def delete_user_story(request, key):
